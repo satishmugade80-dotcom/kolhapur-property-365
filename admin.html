@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="mr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kolhapur Property 365 — Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:#f4f7fb;color:#102a43}
+.wrap{max-width:1100px;margin:auto;padding:20px}.brand{background:linear-gradient(135deg,#071d35,#174f86);color:#fff;border-radius:20px;padding:22px;margin-bottom:18px}.brand h1{margin:0;font-size:25px}.brand p{margin:7px 0 0;opacity:.9}
+.card{background:#fff;border-radius:18px;padding:20px;margin:14px 0;box-shadow:0 5px 22px #00000012}.login{max-width:480px;margin:50px auto}.field{margin:12px 0}.field label{display:block;font-weight:700;margin-bottom:7px}.field input{width:100%;padding:14px;border:1px solid #ccd6e0;border-radius:12px;font-size:16px}
+button{border:0;border-radius:11px;padding:12px 16px;font-size:15px;font-weight:700;cursor:pointer}.primary{background:#075da8;color:white}.green{background:#079447;color:white}.red{background:#c62828;color:white}.gray{background:#e9eef3;color:#183b56}
+.row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.tabs button.active{background:#075da8;color:#fff}.statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}.stat{background:#fff;border-radius:16px;padding:17px;box-shadow:0 3px 15px #0000000d}.stat b{font-size:28px;display:block}.item{border:1px solid #e1e7ed;border-radius:15px;padding:16px;margin:12px 0}.item h3{margin:0 0 8px}.muted{color:#607d8b}.badge{display:inline-block;padding:5px 9px;border-radius:20px;background:#fff3cd;color:#7a5b00;font-size:13px;font-weight:700}.hidden{display:none}.error{color:#b42318;background:#fff0ef;padding:10px;border-radius:10px;margin-top:10px}.success{color:#126b3a;background:#eaf8f0;padding:10px;border-radius:10px;margin-top:10px}
+.small{font-size:13px}.top-actions{display:flex;gap:8px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><h1>BLUESTONE REALTY</h1><p>Kolhapur Property 365 — Private Admin Dashboard</p></div>
+
+  <section id="loginCard" class="card login">
+    <h2>Admin Login</h2>
+    <p class="muted">फक्त अधिकृत Admin साठी.</p>
+    <div class="field"><label>Email</label><input id="email" type="email" value="satishmugade80@gmail.com" autocomplete="username"></div>
+    <div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password" placeholder="तुमचा Supabase password"></div>
+    <button class="primary" style="width:100%" onclick="login()">🔐 Login</button>
+    <div id="loginMsg"></div>
+  </section>
+
+  <section id="app" class="hidden">
+    <div class="row card">
+      <div><b id="adminEmail"></b><div class="muted small">Private Admin Area</div></div>
+      <div class="top-actions"><button class="gray" onclick="loadAll()">↻ Refresh</button><button class="red" onclick="logout()">Logout</button></div>
+    </div>
+
+    <div class="statgrid">
+      <div class="stat"><span>Pending</span><b id="pendingCount">0</b></div>
+      <div class="stat"><span>Approved</span><b id="approvedCount">0</b></div>
+      <div class="stat"><span>New Enquiries</span><b id="newCount">0</b></div>
+    </div>
+
+    <div class="tabs">
+      <button id="t1" class="gray active" onclick="showTab('pending')">🏠 Pending</button>
+      <button id="t2" class="gray" onclick="showTab('approved')">✅ Approved</button>
+      <button id="t3" class="gray" onclick="showTab('enquiries')">📩 Enquiries</button>
+    </div>
+
+    <div id="pending"></div>
+    <div id="approved" class="hidden"></div>
+    <div id="enquiries" class="hidden"></div>
+  </section>
+</div>
+
+<script>
+const SUPABASE_URL="https://glfiwqlwxzudwjdudvnz.supabase.co";
+const SUPABASE_ANON_KEY="sb_publishable_DI1UAGjJSImqrmu96s9sXw_MWgo3He-";
+const ADMIN_EMAIL="satishmugade80@gmail.com";
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+
+function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));}
+function money(v){return v?Number(v).toLocaleString("en-IN",{maximumFractionDigits:0}):"—";}
+
+async function login(){
+  const msg=document.getElementById("loginMsg");msg.innerHTML="";
+  const email=document.getElementById("email").value.trim();
+  const password=document.getElementById("password").value;
+  const {data,error}=await sb.auth.signInWithPassword({email,password});
+  if(error){msg.innerHTML='<div class="error">'+esc(error.message)+'</div>';return;}
+  if(data.user.email.toLowerCase()!==ADMIN_EMAIL){await sb.auth.signOut();msg.innerHTML='<div class="error">हा email Admin म्हणून अधिकृत नाही.</div>';return;}
+  openApp(data.user);
+}
+async function openApp(user){document.getElementById("loginCard").classList.add("hidden");document.getElementById("app").classList.remove("hidden");document.getElementById("adminEmail").textContent=user.email;await loadAll();}
+async function logout(){await sb.auth.signOut();location.reload();}
+async function loadAll(){
+  const {data:p,error:pe}=await sb.from("Properties").select("*").order("created_at",{ascending:false});
+  const {data:e,error:ee}=await sb.from("enquiries").select("*").order("created_at",{ascending:false});
+  if(pe){document.getElementById("pending").innerHTML='<div class="error">'+esc(pe.message)+'</div>';return;}
+  if(ee){document.getElementById("enquiries").innerHTML='<div class="error">'+esc(ee.message)+'</div>';return;}
+  window.props=p||[];window.enqs=e||[];
+  document.getElementById("pendingCount").textContent=props.filter(x=>x.status==="Pending").length;
+  document.getElementById("approvedCount").textContent=props.filter(x=>x.status==="Approved").length;
+  document.getElementById("newCount").textContent=enqs.filter(x=>x.status==="New").length;
+  renderProps("pending",props.filter(x=>x.status==="Pending"));
+  renderProps("approved",props.filter(x=>x.status==="Approved"));
+  renderEnqs(enqs);
+}
+function renderProps(tab,list){
+  const el=document.getElementById(tab);
+  if(!list.length){el.innerHTML='<div class="card"><b>काही records नाहीत.</b></div>';return;}
+  el.innerHTML=list.map(p=>`<div class="item">
+    <div class="row"><h3>${esc(p.property_type||"Property")} — ${esc(p.property_code)}</h3><span class="badge">${esc(p.status)}</span></div>
+    <div>📍 ${esc(p.location)} &nbsp; | &nbsp; ₹${money(p.expected_price)} &nbsp; | &nbsp; ${esc(p.area)}</div>
+    <p>${esc(p.details||"")}</p>
+    <div><b>Owner:</b> ${esc(p.owner_name||"—")} &nbsp; <b>📞 Owner Mobile:</b> ${esc(p.owner_mobile||"—")}</div>
+    ${p.status==="Pending"?`<div class="top-actions" style="margin-top:12px"><button class="green" onclick="setStatus(${p.id},'Approved')">✅ Approve</button><button class="red" onclick="setStatus(${p.id},'Rejected')">Reject</button></div>`:""}
+  </div>`).join("");
+}
+function renderEnqs(list){
+ const el=document.getElementById("enquiries");
+ if(!list.length){el.innerHTML='<div class="card"><b>काही enquiries नाहीत.</b></div>';return;}
+ el.innerHTML=list.map(e=>`<div class="item">
+  <div class="row"><h3>📩 Enquiry #${esc(e.id)}</h3><span class="badge">${esc(e.status)}</span></div>
+  <div><b>Property ID:</b> ${esc(e.property_id)}</div>
+  <div><b>Buyer:</b> ${esc(e.buyer_name)} &nbsp; <b>📞</b> ${esc(e.buyer_mobile)}</div>
+  <p><b>Message:</b> ${esc(e.message||"—")}</p>
+  <button class="gray" onclick="setEnquiryStatus(${e.id},'Contacted')">Mark Contacted</button>
+ </div>`).join("");
+}
+async function setStatus(id,status){
+ const {error}=await sb.from("Properties").update({status}).eq("id",id);
+ if(error){alert(error.message);return;} await loadAll(); showTab(status==="Approved"?"approved":"pending");
+}
+async function setEnquiryStatus(id,status){
+ const {error}=await sb.from("enquiries").update({status}).eq("id",id);
+ if(error){alert(error.message);return;} await loadAll(); showTab("enquiries");
+}
+function showTab(tab){
+ ["pending","approved","enquiries"].forEach(x=>document.getElementById(x).classList.toggle("hidden",x!==tab));
+ [["t1","pending"],["t2","approved"],["t3","enquiries"]].forEach(([id,x])=>document.getElementById(id).classList.toggle("active",x===tab));
+}
+sb.auth.getSession().then(({data:{session}})=>{if(session && session.user.email.toLowerCase()===ADMIN_EMAIL)openApp(session.user);});
+</script>
+</body>
+</html>
