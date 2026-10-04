@@ -37,17 +37,20 @@ button{border:0;border-radius:11px;padding:12px 16px;font-size:15px;font-weight:
       <div class="stat"><span>Pending</span><b id="pendingCount">0</b></div>
       <div class="stat"><span>Approved</span><b id="approvedCount">0</b></div>
       <div class="stat"><span>New Enquiries</span><b id="newCount">0</b></div>
+      <div class="stat"><span>Sold</span><b id="soldCount">0</b></div>
     </div>
 
     <div class="tabs">
       <button id="t1" class="gray active" onclick="showTab('pending')">🏠 Pending</button>
       <button id="t2" class="gray" onclick="showTab('approved')">✅ Approved</button>
       <button id="t3" class="gray" onclick="showTab('enquiries')">📩 Enquiries</button>
+      <button id="t4" class="gray" onclick="showTab('sold')">🏷️ Sold</button>
     </div>
 
     <div id="pending"></div>
     <div id="approved" class="hidden"></div>
     <div id="enquiries" class="hidden"></div>
+    <div id="sold" class="hidden"></div>
   </section>
 </div>
 
@@ -80,9 +83,11 @@ async function loadAll(){
   document.getElementById("pendingCount").textContent=props.filter(x=>x.status==="Pending").length;
   document.getElementById("approvedCount").textContent=props.filter(x=>x.status==="Approved").length;
   document.getElementById("newCount").textContent=enqs.filter(x=>x.status==="New").length;
+  document.getElementById("soldCount").textContent=props.filter(x=>x.status==="Sold").length;
   renderProps("pending",props.filter(x=>x.status==="Pending"));
   renderProps("approved",props.filter(x=>x.status==="Approved"));
   renderEnqs(enqs);
+  renderProps("sold",props.filter(x=>x.status==="Sold"));
 }
 function renderProps(tab,list){
   const el=document.getElementById(tab);
@@ -93,6 +98,7 @@ function renderProps(tab,list){
     <p>${esc(p.details||"")}</p>
     <div><b>Owner:</b> ${esc(p.owner_name||"—")} &nbsp; <b>📞 Owner Mobile:</b> ${esc(p.owner_mobile||"—")}</div>
     ${p.status==="Pending"?`<div class="top-actions" style="margin-top:12px"><button class="green" onclick="setStatus(${p.id},'Approved')">✅ Approve</button><button class="red" onclick="setStatus(${p.id},'Rejected')">Reject</button></div>`:""}
+    ${p.status==="Approved"?`<div class="top-actions" style="margin-top:12px"><button class="gray" onclick="markSold(${p.id})">🏷️ Sold</button></div>`:""}
   </div>`).join("");
 }
 function renderEnqs(list){
@@ -110,13 +116,21 @@ async function setStatus(id,status){
  const {error}=await sb.from("Properties").update({status}).eq("id",id);
  if(error){alert(error.message);return;} await loadAll(); showTab(status==="Approved"?"approved":"pending");
 }
+async function markSold(id){
+  if(!confirm("ही Property Sold म्हणून mark करायची आहे का?")) return;
+  const {data,error}=await sb.rpc("mark_property_sold",{p_property_id:id});
+  if(error){alert(error.message);return;}
+  if(!data){alert("Property सापडली नाही.");return;}
+  await loadAll();
+  showTab("sold");
+}
 async function setEnquiryStatus(id,status){
  const {error}=await sb.from("enquiries").update({status}).eq("id",id);
  if(error){alert(error.message);return;} await loadAll(); showTab("enquiries");
 }
 function showTab(tab){
- ["pending","approved","enquiries"].forEach(x=>document.getElementById(x).classList.toggle("hidden",x!==tab));
- [["t1","pending"],["t2","approved"],["t3","enquiries"]].forEach(([id,x])=>document.getElementById(id).classList.toggle("active",x===tab));
+ ["pending","approved","enquiries","sold"].forEach(x=>document.getElementById(x).classList.toggle("hidden",x!==tab));
+ [["t1","pending"],["t2","approved"],["t3","enquiries"],["t4","sold"]].forEach(([id,x])=>document.getElementById(id).classList.toggle("active",x===tab));
 }
 sb.auth.getSession().then(({data:{session}})=>{if(session && session.user.email.toLowerCase()===ADMIN_EMAIL)openApp(session.user);});
 </script>
